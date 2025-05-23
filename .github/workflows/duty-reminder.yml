@@ -2,8 +2,8 @@ name: Daily Duty Reminder
 
 on:
   schedule:
-    - cron: '0 23 * * *'  # 每天UTC 23:00（北京时间次日7:00）
-  workflow_dispatch:       # 允许手动触发
+    - cron: '0 23 * * *'
+  workflow_dispatch:
 
 jobs:
   send-reminder:
@@ -20,13 +20,19 @@ jobs:
         python-version: '3.10'
 
     - name: Install dependencies
-      working-directory: ./scripts
-      run: pip install -r requirements.txt
+      run: pip install -r ./scripts/requirements.txt  # 关键修改点
+
+    - name: Debug directory structure  # 新增调试步骤
+      run: |
+        echo "当前目录结构："
+        pwd
+        ls -R
+        echo "requirements.txt内容："
+        cat ./scripts/requirements.txt
 
     - name: Run reminder script
       env:
         APP_ID: ${{ secrets.APP_ID }}
         APP_SECRET: ${{ secrets.APP_SECRET }}
         USER_OPENID: ${{ secrets.USER_OPENID }}
-      run: |
-        python scripts/duty_reminder.py
+      run: python ./scripts/duty_reminder.py
