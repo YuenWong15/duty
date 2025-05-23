@@ -31,7 +31,7 @@ def send_reminder(access_token, positions):
     
     data = {
         "touser": USER_OPENID,
-        "template_id": "你的模板ID",
+        "template_id": "GvAf-JiuA2St6W4lLqwzNzX7BUx3X9Dml0lTLEF03c4",
         "data": {
             "content": {"value": content},
             "date": {"value": datetime.now().strftime('%Y-%m-%d')}
