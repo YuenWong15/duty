@@ -1,0 +1,32 @@
+name: Daily Duty Reminder
+
+on:
+  schedule:
+    - cron: '0 23 * * *'  # 每天UTC 23:00（北京时间次日7:00）
+  workflow_dispatch:       # 允许手动触发
+
+jobs:
+  send-reminder:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      working-directory: ./scripts
+      run: pip install -r requirements.txt
+
+    - name: Run reminder script
+      env:
+        APP_ID: ${{ secrets.APP_ID }}
+        APP_SECRET: ${{ secrets.APP_SECRET }}
+        USER_OPENID: ${{ secrets.USER_OPENID }}
+      run: |
+        python scripts/duty_reminder.py
