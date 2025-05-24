@@ -30,7 +30,6 @@ jobs:
       env:
         APP_ID: ${{ secrets.APP_ID }}
         APP_SECRET: ${{ secrets.APP_SECRET }}
-        USER_OPENID: ${{ secrets.USER_OPENID }}
         TEMPLATE_ID: ${{ secrets.TEMPLATE_ID }}
         USER_OPENIDS: "openid1,openid2,openid3"
       run: |
