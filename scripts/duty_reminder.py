@@ -97,9 +97,9 @@ def get_today_duty() -> Optional[Dict[str, str]]:
         raise
 
 def format_positions(positions: Dict[str, str]) -> Dict[str, dict]:
-    def format_positions(positions: Dict[str, str]) -> Dict[str, dict]:
+    """格式化岗位信息（修正后的版本）"""
     fixed_order = [
-        ('数据质控', 8),          # 第二参数为字段总占位宽度（按中文字符计算）
+        ('数据质控', 8),
         ('大数据云平台保障', 10),
         ('信息安全保障', 8),
         ('运行监控与视频会商', 12),
@@ -113,8 +113,8 @@ def format_positions(positions: Dict[str, str]) -> Dict[str, dict]:
         name = positions.get(key, "（暂无）")
         
         # 计算需要填充的空格
-        current_width = len(key.encode('gbk'))  # 按GBK编码计算实际宽度
-        padding = '　' * ((width - current_width) // 2)  # 中文字符占2个宽度单位
+        current_width = len(key.encode('gbk'))
+        padding = '　' * ((width - current_width) // 2)
         
         # 生成对齐后的文本
         aligned_text = f"{key}{padding}｜{name}"
@@ -126,17 +126,15 @@ def format_positions(positions: Dict[str, str]) -> Dict[str, dict]:
     return position_data
 
 def send_reminder(access_token: str, positions: Dict[str, str]) -> Dict[str, dict]:
-
-     # 添加调试输出
+    """发送提醒消息（修正后的版本）"""
+    # 添加调试输出
     position_data = format_positions(positions)
     logging.info("调试数据 - 格式化后的岗位信息:")
     for k, v in position_data.items():
         logging.info(f"{k}: {v['value']}")
-        
-    """发送提醒消息"""
+
     results = {}
     try:
-        position_data = format_positions(positions)
         base_data = {
             "date": {
                 "value": datetime.now().strftime("%Y-%m-%d"),
