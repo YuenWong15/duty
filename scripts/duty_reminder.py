@@ -136,6 +136,13 @@ def format_positions(positions: Dict[str, str]) -> Dict[str, dict]:
     return position_data
 
 def send_reminder(access_token: str, positions: Dict[str, str]) -> Dict[str, dict]:
+
+     # 添加调试输出
+    position_data = format_positions(positions)
+    logging.info("调试数据 - 格式化后的岗位信息:")
+    for k, v in position_data.items():
+        logging.info(f"{k}: {v['value']}")
+        
     """发送提醒消息"""
     results = {}
     try:
