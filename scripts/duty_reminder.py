@@ -113,7 +113,7 @@ def get_today_duty() -> Optional[Dict[str, str]]:
         logging.error(f"读取值班表失败: {str(e)}")
         raise
 
-def format_positions(positions: Dict[str, str]]) -> Dict[str, dict]:
+def format_positions(positions: Dict[str, str]) -> Dict[str, dict]:
     """
     生成6个标准化的模板字段
     - 按岗位名称排序确保稳定性
@@ -143,7 +143,7 @@ def format_positions(positions: Dict[str, str]]) -> Dict[str, dict]:
         
     return position_data
 
-def send_reminder(access_token: str, positions: Dict[str, str]]) -> Dict[str, dict]:
+def send_reminder(access_token: str, positions: Dict[str, str]) -> Dict[str, dict]:
     """批量发送消息给多个用户"""
     results = {}
     
