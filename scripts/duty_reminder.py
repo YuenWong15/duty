@@ -11,6 +11,7 @@ CSV_PATH = os.path.join(BASE_DIR, 'data/duty_schedule.csv')
 APP_ID = os.getenv('APP_ID')
 APP_SECRET = os.getenv('APP_SECRET')
 USER_OPENID = os.getenv('USER_OPENID')
+print(f"APP_ID exists: {bool(APP_ID)}")  # 用于调试验证
 
 def get_access_token():
     url = f'https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid={APP_ID}&secret={APP_SECRET}'
