@@ -1,5 +1,6 @@
 import os
 import csv
+import json
 import requests
 from datetime import datetime
 
@@ -11,6 +12,7 @@ CSV_PATH = os.path.join(BASE_DIR, 'data/duty_schedule.csv')
 APP_ID = os.getenv('APP_ID')
 APP_SECRET = os.getenv('APP_SECRET')
 USER_OPENID = os.getenv('USER_OPENID')
+TEMPLATE_ID = os.getenv('TEMPLATE_ID')
 print(f"APP_ID exists: {bool(APP_ID)}")  # 用于调试验证
 
 def get_access_token():
