@@ -97,33 +97,27 @@ def get_today_duty() -> Optional[Dict[str, str]]:
         raise
 
 def format_positions(positions: Dict[str, str]) -> Dict[str, dict]:
-    """格式化岗位信息（修正后的版本）"""
+    """新版本：仅传递值班人姓名"""
     fixed_order = [
-        ('数据质控', 8),
-        ('大数据云平台保障', 10),
-        ('信息安全保障', 8),
-        ('运行监控与视频会商', 12),
-        ('大夜班1', 8),
-        ('大夜班2', 8)
+        '数据质控',          # 对应模板中的 duty1
+        '大数据云平台保障',  # 对应模板中的 duty2
+        '信息安全保障',
+        '运行监控与视频会商',
+        '大夜班1',
+        '大夜班2'
     ]
     
-    position_data = {}
+    duty_data = {}
     for idx in range(1, 7):
-        key, width = fixed_order[idx-1]
+        key = fixed_order[idx-1]
         name = positions.get(key, "（暂无）")
         
-        # 计算需要填充的空格
-        current_width = len(key.encode('gbk'))
-        padding = '　' * ((width - current_width) // 2)
-        
-        # 生成对齐后的文本
-        aligned_text = f"{key}{padding}｜{name}"
-        
-        position_data[f"position{idx}"] = {
-            "value": aligned_text,
+        # 生成 duty1~duty6 字段
+        duty_data[f"duty{idx}"] = {
+            "value": name,
             "color": "#173177" if name != "（暂无）" else "#FF0000"
         }
-    return position_data
+    return duty_data
 
 def send_reminder(access_token: str, positions: Dict[str, str]) -> Dict[str, dict]:
     """发送提醒消息（修正后的版本）"""
