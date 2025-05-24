@@ -4,6 +4,7 @@ import csv
 import json
 import logging
 import sys
+import time
 from datetime import datetime
 from typing import Dict, Optional, List
 
@@ -20,17 +21,23 @@ logging.basicConfig(
 # -------------------------- 环境变量配置 --------------------------
 def load_env_vars() -> None:
     """验证并加载环境变量"""
-    global APP_ID, APP_SECRET, USER_OPENID, TEMPLATE_ID
+    global APP_ID, APP_SECRET, USER_OPENIDS, TEMPLATE_ID
+    
+    # 基础配置
     APP_ID = os.getenv("APP_ID")
     APP_SECRET = os.getenv("APP_SECRET")
-    USER_OPENID = os.getenv("USER_OPENID")
     TEMPLATE_ID = os.getenv("TEMPLATE_ID")
+    
+    # 多用户配置（逗号分隔）
+    openids = os.getenv("USER_OPENIDS", "")
+    USER_OPENIDS = [oid.strip() for oid in openids.split(",") if oid.strip()]
 
+    # 验证关键配置
     missing = []
     if not APP_ID: missing.append("APP_ID")
     if not APP_SECRET: missing.append("APP_SECRET")
-    if not USER_OPENID: missing.append("USER_OPENID")
     if not TEMPLATE_ID: missing.append("TEMPLATE_ID")
+    if not USER_OPENIDS: missing.append("USER_OPENIDS")
     
     if missing:
         raise EnvironmentError(f"缺少必需环境变量: {', '.join(missing)}")
@@ -79,7 +86,7 @@ def normalize_date(date_str: str) -> Optional[str]:
     return None
 
 def get_today_duty() -> Optional[Dict[str, str]]:
-    """获取今日值班信息（增强健壮性版本）"""
+    """获取今日值班信息"""
     try:
         today = datetime.now().strftime("%Y-%m-%d")
         logging.info(f"今日日期: {today}")
@@ -108,99 +115,112 @@ def get_today_duty() -> Optional[Dict[str, str]]:
 
 def format_positions(positions: Dict[str, str]]) -> Dict[str, dict]:
     """
-    格式化岗位信息（强制生成position1-position6字段）
-    返回结构示例：
-    {
-        "position1": {"value": "【数据质控】张三", "color": "#173177"},
-        "position2": {"value": "【信息安全】李四", "color": "#173177"},
-        ...
-        "position6": {"value": "（无）", "color": "#666666"}
-    }
+    生成6个标准化的模板字段
+    - 按岗位名称排序确保稳定性
+    - 不足6个用（无）填充
+    - 超6个截断并记录警告
     """
     sorted_positions = sorted(positions.items())
     position_data = {}
     
-    # 填充前6个岗位
+    # 生成position1~position6
     for idx in range(1, 7):
-        position_name = f"position{idx}"
+        pos_name = f"position{idx}"
         if idx <= len(sorted_positions):
             pos, name = sorted_positions[idx-1]
-            position_data[position_name] = {
+            position_data[pos_name] = {
                 "value": f"【{pos}】{name}",
                 "color": "#173177"
             }
         else:
-            position_data[position_name] = {
+            position_data[pos_name] = {
                 "value": "（无）",
                 "color": "#666666"
             }
     
-    # 超长岗位警告
     if len(sorted_positions) > 6:
         logging.warning(f"检测到{len(sorted_positions)}个岗位，已截断前6个")
         
     return position_data
 
-def send_reminder(access_token: str, positions: Dict[str, str]]) -> dict:
-    """发送微信模板消息（适配position1-position6模板）"""
+def send_reminder(access_token: str, positions: Dict[str, str]]) -> Dict[str, dict]:
+    """批量发送消息给多个用户"""
+    results = {}
+    
     try:
         if not access_token:
             raise ValueError("无效的access_token")
             
-        # 构造请求数据
         position_data = format_positions(positions)
-        payload = {
-            "touser": USER_OPENID,
-            "template_id": TEMPLATE_ID,
-            "data": {
-                "date": {
-                    "value": datetime.now().strftime("%Y-%m-%d"),
-                    "color": "#173177"
-                },
-                **position_data
+        base_data = {
+            "date": {
+                "value": datetime.now().strftime("%Y-%m-%d"),
+                "color": "#173177"
             }
         }
 
-        # 发送请求
-        url = f"https://api.weixin.qq.com/cgi-bin/message/template/send?access_token={access_token}"
-        logging.debug(f"请求数据:\n{json.dumps(payload, indent=2, ensure_ascii=False)}")
-        
-        response = requests.post(url, json=payload, timeout=15)
-        response.raise_for_status()
-        result = response.json()
+        # 遍历所有用户发送
+        for idx, openid in enumerate(USER_OPENIDS, 1):
+            try:
+                # 添加请求间隔（1秒/次）
+                if idx > 1:
+                    time.sleep(1)
 
-        # 处理微信API错误
-        if result.get("errcode", -1) != 0:
-            errmsg = result.get("errmsg", "未知错误")
-            raise RuntimeError(f"微信API错误: [{result['errcode']}] {errmsg}")
-            
-        return result
+                payload = {
+                    "touser": openid,
+                    "template_id": TEMPLATE_ID,
+                    "data": {**base_data, **position_data}
+                }
 
-    except requests.exceptions.RequestException as e:
-        logging.error(f"网络请求异常: {str(e)}")
-        return {"errcode": -2, "errmsg": str(e)}
-    except json.JSONDecodeError:
-        logging.error("响应内容不是有效JSON")
-        return {"errcode": -3, "errmsg": "Invalid JSON response"}
+                url = f"https://api.weixin.qq.com/cgi-bin/message/template/send?access_token={access_token}"
+                response = requests.post(url, json=payload, timeout=15)
+                response.raise_for_status()
+                
+                result = response.json()
+                results[openid] = result
+
+                # 记录发送结果
+                if result.get("errcode") == 0:
+                    logging.info(f"✅ 发送成功至 {openid[:4]}...")
+                else:
+                    logging.error(f"❌ {openid[:4]}... 失败: {result.get('errmsg')}")
+
+            except Exception as e:
+                error_msg = f"{type(e).__name__}: {str(e)}"
+                results[openid] = {"error": error_msg}
+                logging.error(f"❌ {openid[:4]}... 异常: {error_msg}")
+
     except Exception as e:
-        logging.error(f"未处理的异常: {str(e)}", exc_info=True)
-        return {"errcode": -4, "errmsg": str(e)}
+        logging.error(f"发送流程异常: {str(e)}", exc_info=True)
+        return {"_global": {"error": str(e)}}
+    
+    return results
 
 # -------------------------- 主程序 --------------------------
 if __name__ == "__main__":
     try:
         load_env_vars()
         logging.info("="*40)
-        logging.info("开始执行值班提醒任务")
+        logging.info(f"开始执行值班提醒 | 接收用户数: {len(USER_OPENIDS)}")
         
         if duty_info := get_today_duty():
             logging.info(f"今日值班信息: {duty_info}")
             if token := get_access_token():
-                result = send_reminder(token, duty_info)
-                if result.get("errcode") == 0:
-                    logging.info("✅ 消息发送成功")
-                else:
-                    logging.error(f"❌ 发送失败: {result.get('errmsg')}")
+                # 发送消息并获取结果
+                send_results = send_reminder(token, duty_info)
+                
+                # 统计结果
+                success = sum(1 for res in send_results.values() if res.get("errcode") == 0)
+                failed = len(USER_OPENIDS) - success
+                
+                # 输出汇总
+                logging.info(f"\n发送汇总：成功 {success} 人 / 失败 {failed} 人")
+                if failed > 0:
+                    logging.error("失败详情：")
+                    for oid, res in send_results.items():
+                        if res.get("errcode") != 0:
+                            errmsg = res.get("errmsg") or res.get("error")
+                            logging.error(f"• {oid[:6]}... : {errmsg}")
             else:
                 logging.error("获取微信Token失败")
         else:
