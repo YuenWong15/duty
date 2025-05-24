@@ -97,42 +97,32 @@ def get_today_duty() -> Optional[Dict[str, str]]:
         raise
 
 def format_positions(positions: Dict[str, str]) -> Dict[str, dict]:
-    """
-    【关键修改】按固定顺序生成模板字段
-    修改点：
-    1. 显式定义岗位顺序 fixed_order
-    2. 直接使用原始值班人员数据（不再添加【】符号）
-    3. 严格映射position1~position6
-    """
+    def format_positions(positions: Dict[str, str]) -> Dict[str, dict]:
     fixed_order = [
-        '数据质控',
-        '大数据云平台保障',
-        '信息安全保障',
-        '运行监控与视频会商',
-        '大夜班1',
-        '大夜班2'
+        ('数据质控', 8),          # 第二参数为字段总占位宽度（按中文字符计算）
+        ('大数据云平台保障', 10),
+        ('信息安全保障', 8),
+        ('运行监控与视频会商', 12),
+        ('大夜班1', 8),
+        ('大夜班2', 8)
     ]
     
     position_data = {}
     for idx in range(1, 7):
-        pos_name = f"position{idx}"
-        try:
-            # 按固定顺序获取岗位
-            key = fixed_order[idx-1]
-            value = positions.get(key, "（无）").strip()
-        except IndexError:
-            value = "（无）"
+        key, width = fixed_order[idx-1]
+        name = positions.get(key, "（暂无）")
         
-        position_data[pos_name] = {
-            "value": value,
-            "color": "#173177" if value != "（无）" else "#666666"
+        # 计算需要填充的空格
+        current_width = len(key.encode('gbk'))  # 按GBK编码计算实际宽度
+        padding = '　' * ((width - current_width) // 2)  # 中文字符占2个宽度单位
+        
+        # 生成对齐后的文本
+        aligned_text = f"{key}{padding}｜{name}"
+        
+        position_data[f"position{idx}"] = {
+            "value": aligned_text,
+            "color": "#173177" if name != "（暂无）" else "#FF0000"
         }
-    
-    # 检查未处理的岗位
-    extra_positions = set(positions.keys()) - set(fixed_order)
-    if extra_positions:
-        logging.warning(f"存在未配置的岗位: {', '.join(extra_positions)}")
-        
     return position_data
 
 def send_reminder(access_token: str, positions: Dict[str, str]) -> Dict[str, dict]:
