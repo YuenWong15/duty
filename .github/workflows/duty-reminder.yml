@@ -31,5 +31,6 @@ jobs:
         APP_ID: ${{ secrets.APP_ID }}
         APP_SECRET: ${{ secrets.APP_SECRET }}
         USER_OPENID: ${{ secrets.USER_OPENID }}
+        TEMPLATE_ID: ${{ secrets.TEMPLATE_ID }}
       run: |
         python ./scripts/duty_reminder.py
