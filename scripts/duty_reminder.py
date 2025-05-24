@@ -19,11 +19,20 @@ def get_access_token():
 
 def get_today_duty():
     today = datetime.now().strftime('%Y-%m-%d')
-    with open(CSV_PATH, 'r', encoding='utf-8') as f:
+    print(f"\n==== 今日日期 ====\n{today}")
+    
+    with open(CSV_PATH, 'r', encoding='utf-8-sig') as f:
+        print(f"\n==== CSV文件完整内容 ====\n{f.read()}")
+        f.seek(0)
+        
         reader = csv.DictReader(f)
+        print(f"\n==== CSV列名 ====\n{reader.fieldnames}")
+        
         for row in reader:
-            if row['date'] == today:
-                return {k:v for k,v in row.items() if k != 'date' and v.strip()}
+            print(f"\n当前检查行: {row}")
+            if row.get('date', '').strip() == today:
+                print("!!! 找到匹配记录 !!!")
+                return {k:v.strip() for k,v in row.items() if k != 'date' and v.strip()}
         return None
 
 def send_reminder(access_token, positions):
@@ -39,6 +48,14 @@ def send_reminder(access_token, positions):
         }
     }
     return requests.post(url, json=data).json()
+    print("\n==== 发送消息的请求数据 ====")
+    print(json.dumps(data, indent=2, ensure_ascii=False))
+    
+    response = requests.post(url, json=data)
+    print("\n==== 微信消息接口响应 ====")
+    print(f"HTTP状态码: {response.status_code}")
+    print(f"响应内容: {response.text}")
+    return response.json()
 
 if __name__ == "__main__":
     if duty_info := get_today_duty():
