@@ -51,24 +51,34 @@ def get_today_duty():
 
 def send_reminder(access_token, positions):
     url = f'https://api.weixin.qq.com/cgi-bin/message/template/send?access_token={access_token}'
-    content = '\n'.join([f"{pos}：{name}" for pos, name in positions.items()])
+    url = f'https://api.weixin.qq.com/cgi-bin/message/template/send?access_token={access_token}'
+    
+    # 生成岗位信息字符串（关键修改点）
+    positions_str = "\n".join([
+        f"【{position}】{names}" 
+        for position, names in positions.items()
+    ])
     
     data = {
         "touser": USER_OPENID,
-        "template_id": "GvAf-JiuA2St6W4lLqwzNzX7BUx3X9Dml0lTLEF03c4",
+        "template_id": TEMPLATE_ID,
         "data": {
-            "content": {"value": content},
-            "date": {"value": datetime.now().strftime('%Y-%m-%d')}
+            "positions": {  # 必须与模板中的{{positions.DATA}}完全匹配
+                "value": positions_str,
+                "color": "#173177"
+            },
+            "date": {  # 必须与模板中的{{date.DATA}}完全匹配
+                "value": datetime.now().strftime('%Y-%m-%d'),
+                "color": "#173177"
+            }
         }
     }
-    return requests.post(url, json=data).json()
-    print("\n==== 发送消息的请求数据 ====")
+    
+    # 打印调试信息
+    print("\n==== 发送的模板数据 ====")
     print(json.dumps(data, indent=2, ensure_ascii=False))
     
     response = requests.post(url, json=data)
-    print("\n==== 微信消息接口响应 ====")
-    print(f"HTTP状态码: {response.status_code}")
-    print(f"响应内容: {response.text}")
     return response.json()
 
 if __name__ == "__main__":
