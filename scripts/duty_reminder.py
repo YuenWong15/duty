@@ -17,6 +17,20 @@ def get_access_token():
     url = f'https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid={APP_ID}&secret={APP_SECRET}'
     return requests.get(url).json().get('access_token')
 
+def normalize_date(date_str):
+    """处理不同格式的日期字符串"""
+    try:
+        # 尝试解析带前导零的日期
+        dt = datetime.strptime(date_str.strip(), "%Y-%m-%d")
+        return dt.strftime("%Y-%m-%d")
+    except ValueError:
+        try:
+            # 尝试解析无前导零的日期
+            dt = datetime.strptime(date_str.strip(), "%Y-%m-%d")
+            return dt.strftime("%Y-%m-%d")
+        except:
+            return None
+            
 def get_today_duty():
     today = datetime.now().strftime('%Y-%m-%d')
     print(f"\n==== 今日日期 ====\n{today}")
