@@ -5,7 +5,7 @@ import json
 import logging
 import sys
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 import requests
 
@@ -26,7 +26,6 @@ def load_env_vars() -> None:
     USER_OPENID = os.getenv("USER_OPENID")
     TEMPLATE_ID = os.getenv("TEMPLATE_ID")
 
-    # 验证关键配置是否存在
     missing = []
     if not APP_ID: missing.append("APP_ID")
     if not APP_SECRET: missing.append("APP_SECRET")
@@ -46,7 +45,7 @@ def get_access_token() -> Optional[str]:
     try:
         url = f"https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid={APP_ID}&secret={APP_SECRET}"
         response = requests.get(url, timeout=10)
-        response.raise_for_status()  # 触发HTTP错误状态
+        response.raise_for_status()
         
         data = response.json()
         if "access_token" not in data:
@@ -59,23 +58,21 @@ def get_access_token() -> Optional[str]:
         logging.error(f"网络请求失败: {str(e)}")
     except json.JSONDecodeError:
         logging.error("微信API返回无效的JSON响应")
-    except KeyError:
-        logging.error("微信API响应缺少access_token字段")
+    except Exception as e:
+        logging.error(f"获取Token异常: {str(e)}")
     return None
 
 def normalize_date(date_str: str) -> Optional[str]:
     """标准化日期格式（支持多种输入格式）"""
     date_formats = [
-        "%Y-%m-%d",   # 标准格式
-        "%Y-%-m-%-d",  # 无前导零（Linux）
-        "%Y/%m/%d",    # 斜杠格式
-        "%Y%m%d"       # 紧凑格式
+        "%Y-%m-%d", "%Y-%-m-%-d", 
+        "%Y/%m/%d", "%Y%m%d"
     ]
     
     for fmt in date_formats:
         try:
             dt = datetime.strptime(date_str.strip(), fmt)
-            return dt.strftime("%Y-%m-%d")  # 统一输出标准格式
+            return dt.strftime("%Y-%m-%d")
         except ValueError:
             continue
     logging.warning(f"无法解析的日期格式: {date_str}")
@@ -91,23 +88,13 @@ def get_today_duty() -> Optional[Dict[str, str]]:
             raise FileNotFoundError(f"CSV文件不存在: {CSV_PATH}")
 
         with open(CSV_PATH, "r", encoding="utf-8-sig") as f:
-            # 单次读取并缓存内容
-            content = f.read()
-            logging.debug(f"CSV原始内容:\n{content}")
-            f.seek(0)
-            
             reader = csv.DictReader(f)
             if "date" not in reader.fieldnames:
                 raise ValueError("CSV文件缺少date列")
 
             for row in reader:
                 csv_date = normalize_date(row.get("date", ""))
-                if not csv_date:
-                    continue
-                
-                logging.debug(f"比对日期: CSV={csv_date} vs TODAY={today}")
                 if csv_date == today:
-                    # 过滤空值和date列
                     return {
                         k: v.strip()
                         for k, v in row.items()
@@ -119,54 +106,74 @@ def get_today_duty() -> Optional[Dict[str, str]]:
         logging.error(f"读取值班表失败: {str(e)}")
         raise
 
-def send_reminder(access_token: str, positions: Dict[str, str]) -> Dict:
-    """发送微信模板消息（生产级错误处理）"""
+def format_positions(positions: Dict[str, str]]) -> Dict[str, dict]:
+    """
+    格式化岗位信息（强制生成position1-position6字段）
+    返回结构示例：
+    {
+        "position1": {"value": "【数据质控】张三", "color": "#173177"},
+        "position2": {"value": "【信息安全】李四", "color": "#173177"},
+        ...
+        "position6": {"value": "（无）", "color": "#666666"}
+    }
+    """
+    sorted_positions = sorted(positions.items())
+    position_data = {}
+    
+    # 填充前6个岗位
+    for idx in range(1, 7):
+        position_name = f"position{idx}"
+        if idx <= len(sorted_positions):
+            pos, name = sorted_positions[idx-1]
+            position_data[position_name] = {
+                "value": f"【{pos}】{name}",
+                "color": "#173177"
+            }
+        else:
+            position_data[position_name] = {
+                "value": "（无）",
+                "color": "#666666"
+            }
+    
+    # 超长岗位警告
+    if len(sorted_positions) > 6:
+        logging.warning(f"检测到{len(sorted_positions)}个岗位，已截断前6个")
+        
+    return position_data
+
+def send_reminder(access_token: str, positions: Dict[str, str]]) -> dict:
+    """发送微信模板消息（适配position1-position6模板）"""
     try:
-        # ================== 参数校验 ==================
         if not access_token:
             raise ValueError("无效的access_token")
-        if not positions or not isinstance(positions, dict):
-            raise ValueError("positions必须是非空字典")
-
-        # ================== 数据准备 ==================
-        positions_str = "\n".join(
-            [f"【{pos}】{name}" for pos, name in positions.items() if name]
-        )
-        if not positions_str:
-            logging.warning("所有岗位信息均为空")
-            return {"errcode": -1, "errmsg": "无有效值班信息"}
-
+            
+        # 构造请求数据
+        position_data = format_positions(positions)
         payload = {
             "touser": USER_OPENID,
             "template_id": TEMPLATE_ID,
             "data": {
-                "positions": {
-                    "value": positions_str,
-                    "color": "#173177"
-                },
                 "date": {
                     "value": datetime.now().strftime("%Y-%m-%d"),
                     "color": "#173177"
-                }
+                },
+                **position_data
             }
         }
 
-        # ================== 请求发送 ==================
+        # 发送请求
         url = f"https://api.weixin.qq.com/cgi-bin/message/template/send?access_token={access_token}"
-        logging.debug(f"请求URL: {url}")
-        logging.debug(f"请求体:\n{json.dumps(payload, indent=2, ensure_ascii=False)}")
-
+        logging.debug(f"请求数据:\n{json.dumps(payload, indent=2, ensure_ascii=False)}")
+        
         response = requests.post(url, json=payload, timeout=15)
         response.raise_for_status()
-
-        # ================== 响应处理 ==================
         result = response.json()
-        logging.debug(f"微信响应: {json.dumps(result, indent=2)}")
 
+        # 处理微信API错误
         if result.get("errcode", -1) != 0:
             errmsg = result.get("errmsg", "未知错误")
             raise RuntimeError(f"微信API错误: [{result['errcode']}] {errmsg}")
-
+            
         return result
 
     except requests.exceptions.RequestException as e:
@@ -182,7 +189,7 @@ def send_reminder(access_token: str, positions: Dict[str, str]) -> Dict:
 # -------------------------- 主程序 --------------------------
 if __name__ == "__main__":
     try:
-        load_env_vars()  # 必须在最前面调用
+        load_env_vars()
         logging.info("="*40)
         logging.info("开始执行值班提醒任务")
         
