@@ -74,7 +74,9 @@ def normalize_date(date_str: str) -> Optional[str]:
 def get_today_duty() -> Optional[Dict[str, str]]:
     """获取今日值班信息（带数据校验）"""
     try:
-        today = datetime.now().strftime("%Y-%m-%d")
+        # today = datetime.now().strftime("%Y-%m-%d")
+        # 使用东八区时间
+        today = datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d")
         if not os.path.exists(CSV_PATH):
             raise FileNotFoundError(f"CSV文件不存在: {CSV_PATH}")
 
